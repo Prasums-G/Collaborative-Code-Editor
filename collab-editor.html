@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Collaborative Code Editor — OT</title>
+  <style>
+    /* ─── RESET ─── */
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Segoe UI',sans-serif;background:#f4f6f9;color:#1a1a2e;min-height:100vh}
+
+    /* ─── LAYOUT ─── */
+    .container{max-width:960px;margin:0 auto;padding:2rem 1.25rem}
+
+    /* ─── HEADER ─── */
+    .page-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem}
+    .page-header h1{font-size:20px;font-weight:600}
+    .live-badge{
+      display:flex;align-items:center;gap:6px;
+      background:#e0f7ef;color:#0f6e56;
+      font-size:12px;padding:5px 12px;border-radius:20px;font-weight:500
+    }
+    .pulse{
+      width:8px;height:8px;border-radius:50%;background:#22c55e;
+      animation:pulse 1.5s ease-in-out infinite
+    }
+    @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
+
+    /* ─── USER AVATARS ─── */
+    .users-bar{display:flex;align-items:center;gap:8px;margin-bottom:1rem}
+    .avatar{
+      width:30px;height:30px;border-radius:50%;
+      display:flex;align-items:center;justify-content:center;
+      font-size:11px;font-weight:600;border:2px solid #fff;
+      cursor:pointer;transition:transform .15s
+    }
+    .avatar:hover{transform:scale(1.1)}
+    .users-label{font-size:13px;color:#666;margin-left:4px}
+    .typing-indicator{font-size:12px;color:#999;margin-left:auto;font-style:italic}
+
+    /* ─── EDITOR SHELL ─── */
+    .editor-shell{
+      background:#fff;border-radius:14px;
+      border:1px solid #e0e0e0;overflow:hidden;
+      margin-bottom:1rem
+    }
+
+    /* ─── TITLE BAR ─── */
+    .title-bar{
+      background:#f8f8f8;border-bottom:1px solid #e8e8e8;
+      padding:10px 16px;display:flex;align-items:center;justify-content:space-between
+    }
+    .file-tabs{display:flex;gap:2px}
+    .tab{
+      padding:5px 14px;border-radius:6px 6px 0 0;font-size:13px;
+      color:#888;cursor:pointer;border:1px solid transparent;border-bottom:none
+    }
+    .tab.active{
+      background:#fff;color:#1a1a2e;
+      border-color:#e0e0e0;border-bottom-color:#fff;font-weight:500
+    }
+    .sync-status{
+      font-size:11px;padding:3px 10px;border-radius:12px;font-weight:500;
+      transition:all .3s
+    }
+    .sync-synced{background:#e0f7ef;color:#0f6e56}
+    .sync-sending{background:#fff3e0;color:#b45309}
+    .sync-conflict{background:#fef3c7;color:#92400e}
+
+    /* ─── EDITOR BODY ─── */
+    .editor-body{display:grid;grid-template-columns:44px 1fr;background:#fff}
+    .gutter{
+      background:#f8f8f8;border-right:1px solid #eee;
+      padding:12px 0;user-select:none
+    }
+    .line-num{
+      display:block;font-size:12px;color:#bbb;
+      font-family:'Courier New',monospace;line-height:21px;
+      text-align:right;padding:0 10px
+    }
+    #editor{
+      padding:12px 16px;font-family:'Courier New',monospace;
+      font-size:13px;line-height:21px;color:#1a1a2e;
+      outline:none;min-height:280px;white-space:pre;
+      overflow-x:auto;position:relative
+    }
+
+    /* ─── REMOTE CURSORS ─── */
+    .remote-cursor-wrap{position:relative;display:inline}
+    .remote-cursor{
+      display:inline-block;width:2px;height:15px;
+      vertical-align:text-bottom;border-radius:1px;
+      animation:blink 1s step-end infinite
+    }
+    @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+    .cursor-name{
+      position:absolute;top:-20px;left:0;
+      font-size:10px;padding:2px 6px;border-radius:4px;
+      color:#fff;white-space:nowrap;font-family:sans-serif;
+      pointer-events:none;z-index:10
+    }
+
+    /* ─── OPERATION LOG ─── */
+    .ops-panel{
+      background:#fff;border-radius:14px;border:1px solid #e0e0e0;
+      overflow:hidden;margin-bottom:1rem
+    }
+    .ops-header{
+      background:#f8f8f8;border-bottom:1px solid #e8e8e8;
+      padding:9px 16px;display:flex;justify-content:space-between;align-items:center
+    }
+    .ops-title{font-size:13px;font-weight:600;color:#444}
+    .ops-count{font-size:11px;color:#999}
+    .ops-body{max-height:130px;overflow-y:auto;padding:4px 0}
+    .op-row{
+      display:flex;align-items:center;gap:10px;
+      padding:5px 16px;font-size:12px;color:#555;
+      border-bottom:1px solid #f0f0f0
+    }
+    .op-row:last-child{border-bottom:none}
+    .op-avatar{
+      width:20px;height:20px;border-radius:50%;
+      display:flex;align-items:center;justify-content:center;
+      font-size:9px;font-weight:600;flex-shrink:0
+    }
+    .op-badge{
+      font-size:10px;padding:2px 8px;border-radius:4px;
+      font-family:monospace;font-weight:600;flex-shrink:0
+    }
+    .insert-badge{background:#dcfce7;color:#166534}
+    .delete-badge{background:#fee2e2;color:#991b1b}
+    .retain-badge{background:#e0e7ff;color:#3730a3}
+    .op-detail{font-family:monospace;font-size:11px;color:#777;flex:1}
+    .op-time{font-family:monospace;font-size:11px;color:#bbb;margin-left:auto;flex-shrink:0}
+
+    /* ─── CONFLICT VISUALISER ─── */
+    .conflict-panel{
+      background:#fff;border-radius:14px;border:1px solid #e0e0e0;
+      overflow:hidden;margin-bottom:1rem
+    }
+    .conflict-header{
+      background:#f8f8f8;border-bottom:1px solid #e8e8e8;
+      padding:9px 16px;font-size:13px;font-weight:600;color:#444
+    }
+    .conflict-body{padding:14px 16px}
+    .conflict-row{display:grid;grid-template-columns:1fr 40px 1fr;gap:10px;align-items:start;margin-bottom:10px}
+    .conflict-box{border:1px solid #e0e0e0;border-radius:8px;padding:10px;font-size:12px}
+    .conflict-box .op-label{font-size:11px;font-weight:600;margin-bottom:6px;color:#666}
+    .conflict-box code{font-family:monospace;font-size:11px;display:block;background:#f8f8f8;padding:4px 6px;border-radius:4px;margin-top:4px}
+    .arrow-col{display:flex;align-items:center;justify-content:center;font-size:20px;color:#999;padding-top:24px}
+    .resolved-box{
+      border:1px solid #22c55e;border-radius:8px;
+      padding:10px;font-size:12px;background:#f0fdf4
+    }
+    .resolved-box .op-label{font-size:11px;font-weight:600;color:#15803d;margin-bottom:6px}
+    .resolved-box code{font-family:monospace;font-size:11px;background:#dcfce7;padding:4px 6px;border-radius:4px;display:block;margin-top:4px}
+
+    /* ─── CONTROLS ─── */
+    .controls{display:flex;gap:8px;flex-wrap:wrap}
+    .btn{
+      padding:8px 16px;border-radius:8px;border:1px solid #ddd;
+      background:#fff;color:#444;font-size:13px;cursor:pointer;
+      transition:all .15s
+    }
+    .btn:hover{background:#f5f5f5;border-color:#ccc}
+    .btn.primary{background:#7F77DD;color:#fff;border-color:#7F77DD}
+    .btn.primary:hover{background:#534AB7}
+    .btn.danger{background:#fee2e2;color:#991b1b;border-color:#fca5a5}
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- HEADER -->
+  <div class="page-header">
+    <h1>Collaborative Code Editor</h1>
+    <div class="live-badge"><div class="pulse"></div>Live — 3 users</div>
+  </div>
+
+  <!-- USER AVATARS -->
+  <div class="users-bar">
+    <div id="avatar-row"></div>
+    <span class="users-label" id="users-label">3 users editing</span>
+    <span class="typing-indicator" id="typing-hint"></span>
+  </div>
+
+  <!-- EDITOR -->
+  <div class="editor-shell">
+    <div class="title-bar">
+      <div class="file-tabs">
+        <div class="tab active">merge_sort.py</div>
+        <div class="tab">utils.py</div>
+      </div>
+      <span class="sync-status sync-synced" id="sync-badge">synced</span>
+    </div>
+    <div class="editor-body">
+      <div class="gutter" id="gutter"></div>
+      <div id="editor" contenteditable="true" spellcheck="false" role="textbox" aria-label="Code editor" aria-multiline="true"></div>
+    </div>
+  </div>
+
+  <!-- CONTROLS -->
+  <div class="controls" style="margin-bottom:1rem">
+    <button class="btn primary" onclick="simulateRemoteInsert()">Simulate remote insert</button>
+    <button class="btn primary" onclick="simulateRemoteDelete()">Simulate remote delete</button>
+    <button class="btn danger" onclick="simulateConflict()">Simulate OT conflict</button>
+    <button class="btn" onclick="resetEditor()">Reset</button>
+  </div>
+
+  <!-- OPERATION LOG -->
+  <div class="ops-panel">
+    <div class="ops-header">
+      <span class="ops-title">Operation log <span style="font-weight:400;color:#999">(OT events broadcast over WebSocket)</span></span>
+      <span class="ops-count" id="ops-count">0 operations</span>
+    </div>
+    <div class="ops-body" id="ops-body">
+      <div class="op-row" style="color:#bbb;justify-content:center;padding:16px">No operations yet — start typing or simulate one</div>
+    </div>
+  </div>
+
+  <!-- CONFLICT EXPLAINER -->
+  <div class="conflict-panel" id="conflict-panel" style="display:none">
+    <div class="conflict-header">OT conflict resolution — what just happened</div>
+    <div class="conflict-body">
+      <div class="conflict-row">
+        <div class="conflict-box">
+          <div class="op-label" style="color:#7F77DD">Arjun's operation (client A)</div>
+          INSERT at position 6<br>
+          <code>insert(6, "    # base case")</code>
+          version: 4
+        </div>
+        <div class="arrow-col">⇒</div>
+        <div class="conflict-box">
+          <div class="op-label" style="color:#1D9E75">Priya's operation (client B)</div>
+          INSERT at position 6<br>
+          <code>insert(6, "    # trivial case")</code>
+          version: 4
+        </div>
+      </div>
+      <div style="font-size:12px;color:#666;margin-bottom:10px">
+        Both clients were at <strong>version 4</strong> and inserted at the same position simultaneously.
+        The server uses OT to transform Priya's position → 7 so both insertions are preserved.
+      </div>
+      <div class="resolved-box">
+        <div class="op-label">OT resolved — both operations applied, document converged</div>
+        Server applies: <code>insert(6, "    # base case")</code> then <code>insert(7, "    # trivial case")</code>
+        <div style="margin-top:6px;font-size:11px;color:#15803d">All clients now have identical document state ✓</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  /* ════════════════════════════════════════
+     DATA — simulated collaborators
+  ════════════════════════════════════════ */
+  const USERS = [
+    { name:'Arjun', color:'#7F77DD', initials:'AR' },
+    { name:'Priya', color:'#1D9E75', initials:'PR' },
+    { name:'Rahul', color:'#D85A30', initials:'RH' },
+  ];
+
+  /* Initial document */
+  const INITIAL_CODE =
+`def merge_sort(arr):
+    if len(arr) <= 1:
+        return arr
+    mid = len(arr) // 2
+    left = merge_sort(arr[:mid])
+    right = merge_sort(arr[mid:])
+    return merge(left, right)
+
+def merge(left, right):
+    result = []
+    i = j = 0
+    while i < len(left) and j < len(right):
+        if left[i] <= right[j]:
+            result.append(left[i])
+            i += 1
+        else:
+            result.append(right[j])
+            j += 1
+    result.extend(left[i:])
+    result.extend(right[j:])
+    return result`;
+
+  /* ════════════════════════════════════════
+     OT CORE — simplified operational transform
+     Each operation: { type, pos, text, len, version }
+     transform(opA, opB) adjusts opA assuming opB was already applied
+  ════════════════════════════════════════ */
+  function transformInsertInsert(opA, opB) {
+    /* If opB inserts before or at opA's position,
+       opA's position must shift right by opB's text length */
+    if (opB.pos <= opA.pos) {
+      return { ...opA, pos: opA.pos + opB.text.length };
+    }
+    return opA; /* opB is after opA — no change needed */
+  }
+
+  function transformInsertDelete(opA, opB) {
+    /* opB deleted text before opA — shift opA left */
+    if (opB.pos < opA.pos) {
+      return { ...opA, pos: Math.max(opB.pos, opA.pos - opB.len) };
+    }
+    return opA;
+  }
+
+  function applyOp(doc, op) {
+    if (op.type === 'insert') {
+      return doc.slice(0, op.pos) + op.text + doc.slice(op.pos);
+    }
+    if (op.type === 'delete') {
+      return doc.slice(0, op.pos) + doc.slice(op.pos + op.len);
+    }
+    return doc;
+  }
+
+  /* ════════════════════════════════════════
+     STATE
+  ════════════════════════════════════════ */
+  let doc = INITIAL_CODE;
+  let version = 0;
+  let opCount = 0;
+  let remoteIdx = 0;
+
+  /* ════════════════════════════════════════
+     DOM HELPERS
+  ════════════════════════════════════════ */
+  const editor    = document.getElementById('editor');
+  const gutter    = document.getElementById('gutter');
+  const opsBody   = document.getElementById('ops-body');
+  const opsCount  = document.getElementById('ops-count');
+  const syncBadge = document.getElementById('sync-badge');
+
+  function renderDoc() {
+    editor.textContent = doc;
+    updateGutter();
+  }
+
+  function updateGutter() {
+    const lines = doc.split('\n').length;
+    gutter.innerHTML = Array.from({ length: lines }, (_, i) =>
+      `<span class="line-num">${i + 1}</span>`).join('');
+  }
+
+  /* Build avatar bar */
+  const avatarRow = document.getElementById('avatar-row');
+  avatarRow.style.cssText = 'display:flex;gap:4px';
+  USERS.forEach(u => {
+    const el = document.createElement('div');
+    el.className = 'avatar';
+    el.style.cssText = `background:${u.color}22;color:${u.color};border-color:${u.color}55`;
+    el.title = u.name;
+    el.textContent = u.initials;
+    avatarRow.appendChild(el);
+  });
+
+  /* Sync badge states */
+  function setSyncState(state) {
+    const map = {
+      synced:   ['sync-synced', 'synced'],
+      sending:  ['sync-sending', 'sending…'],
+      conflict: ['sync-conflict', 'conflict!'],
+      resolved: ['sync-synced', 'resolved ✓'],
+    };
+    syncBadge.className = 'sync-status ' + map[state][0];
+    syncBadge.textContent = map[state][1];
+  }
+
+  /* Log an operation */
+  function logOp(type, user, detail) {
+    opCount++;
+    const empty = opsBody.querySelector('[style*="justify-content:center"]');
+    if (empty) empty.remove();
+
+    const now = new Date();
+    const time = [now.getHours(), now.getMinutes(), now.getSeconds()]
+      .map(n => n.toString().padStart(2,'0')).join(':');
+
+    const badgeClass = type === 'insert' ? 'insert-badge'
+                     : type === 'delete' ? 'delete-badge' : 'retain-badge';
+
+    const row = document.createElement('div');
+    row.className = 'op-row';
+    row.innerHTML = `
+      <div class="op-avatar" style="background:${user.color}22;color:${user.color}">${user.initials}</div>
+      <span class="op-badge ${badgeClass}">${type}</span>
+      <span class="op-detail">${detail}</span>
+      <span class="op-time">${time} · v${version}</span>
+    `;
+    opsBody.insertBefore(row, opsBody.firstChild);
+    opsCount.textContent = `${opCount} operations`;
+  }
+
+  /* ════════════════════════════════════════
+     SIMULATE REMOTE INSERTS
+  ════════════════════════════════════════ */
+  const REMOTE_INSERTS = [
+    { user: USERS[0], op: { type:'insert', text:'\n    # O(n log n) time, O(n) space', pos: 0 }, label:'comment after line 1' },
+    { user: USERS[1], op: { type:'insert', text:'\n    # merge step — linear scan', pos: 200 }, label:'comment in merge()' },
+    { user: USERS[0], op: { type:'insert', text:'\n    # extend remaining elements', pos: 300 }, label:'comment before return' },
+    { user: USERS[2], op: { type:'insert', text:'\n# type: list[int] -> list[int]', pos: 0 }, label:'type annotation at top' },
+  ];
+
+  function simulateRemoteInsert() {
+    const item = REMOTE_INSERTS[remoteIdx % REMOTE_INSERTS.length];
+    remoteIdx++;
+    setSyncState('sending');
+    setTimeout(() => {
+      const safePos = Math.min(item.op.pos, doc.length);
+      const op = { ...item.op, pos: safePos };
+      doc = applyOp(doc, op);
+      version++;
+      renderDoc();
+      logOp('insert', item.user, `pos:${safePos} → "${op.text.trim().slice(0,30)}"`);
+      setSyncState('synced');
+    }, 350);
+  }
+
+  /* ════════════════════════════════════════
+     SIMULATE REMOTE DELETE
+  ════════════════════════════════════════ */
+  function simulateRemoteDelete() {
+    const user = USERS[1];
+    setSyncState('sending');
+    setTimeout(() => {
+      const lines = doc.split('\n');
+      if (lines.length > 3) {
+        const targetLine = lines[2];
+        const pos = lines.slice(0,2).join('\n').length + 1;
+        doc = applyOp(doc, { type:'delete', pos, len: targetLine.length + 1 });
+        version++;
+        renderDoc();
+        logOp('delete', user, `pos:${pos} len:${targetLine.length + 1} "${targetLine.trim().slice(0,25)}"`);
+      }
+      setSyncState('synced');
+    }, 350);
+  }
+
+  /* ════════════════════════════════════════
+     SIMULATE OT CONFLICT
+     Two users insert at the same position simultaneously
+     Server applies OT: adjusts position of second op
+  ════════════════════════════════════════ */
+  function simulateConflict() {
+    const uA = USERS[0], uB = USERS[1];
+    setSyncState('conflict');
+    document.getElementById('conflict-panel').style.display = 'block';
+
+    const opA = { type:'insert', pos:6, text:'    # base case', version: version };
+    const opB = { type:'insert', pos:6, text:'    # trivial case', version: version };
+
+    setTimeout(() => {
+      logOp('insert', uA, `pos:6 "# base case" [v${version}] — received first`);
+      doc = applyOp(doc, opA);
+      version++;
+    }, 200);
+
+    setTimeout(() => {
+      /* Transform opB relative to opA — opB's pos shifts right */
+      const opBPrime = transformInsertInsert(opB, opA);
+      logOp('insert', uB, `pos:${opBPrime.pos} "# trivial case" [transformed from 6→${opBPrime.pos}]`);
+      doc = applyOp(doc, opBPrime);
+      version++;
+      renderDoc();
+      setSyncState('resolved');
+    }, 800);
+  }
+
+  /* ════════════════════════════════════════
+     LOCAL KEYSTROKES → logged as local ops
+  ════════════════════════════════════════ */
+  editor.addEventListener('keydown', e => {
+    if (e.key === 'Tab') { e.preventDefault(); document.execCommand('insertText',false,'    '); }
+  });
+
+  editor.addEventListener('input', () => {
+    doc = editor.textContent;
+    updateGutter();
+    setSyncState('sending');
+    const hint = document.getElementById('typing-hint');
+    hint.textContent = 'You are typing…';
+    clearTimeout(editor._t);
+    editor._t = setTimeout(() => {
+      setSyncState('synced');
+      hint.textContent = '';
+      logOp('insert', { name:'You', color:'#888', initials:'ME' }, `local keystroke → broadcast`);
+      version++;
+    }, 600);
+  });
+
+  /* ════════════════════════════════════════
+     RESET
+  ════════════════════════════════════════ */
+  function resetEditor() {
+    doc = INITIAL_CODE; version = 0; opCount = 0; remoteIdx = 0;
+    renderDoc();
+    opsBody.innerHTML = '<div class="op-row" style="color:#bbb;justify-content:center;padding:16px">No operations yet</div>';
+    opsCount.textContent = '0 operations';
+    setSyncState('synced');
+    document.getElementById('conflict-panel').style.display = 'none';
+  }
+
+  /* ════════════════════════════════════════
+     INIT
+  ════════════════════════════════════════ */
+  renderDoc();
+</script>
+</body>
+</html>
