@@ -1,0 +1,65 @@
+# docker-compose.yml — Full Collaborative Editor Stack
+# Brings up: API server, PostgreSQL, MongoDB, Redis
+
+version: '3.9'
+
+services:
+
+  server:
+    build: ./server
+    ports:
+      - "4000:4000"
+    environment:
+      NODE_ENV: development
+      PORT: 4000
+      POSTGRES_URL: postgresql://collab:collab@postgres:5432/collab_editor
+      MONGO_URL: mongodb://mongo:27017/collab_ops
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: dev_secret_change_in_production
+      JWT_REFRESH_SECRET: dev_refresh_secret
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongo:
+        condition: service_started
+      redis:
+        condition: service_started
+    volumes:
+      - ./server/logs:/app/logs
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: collab
+      POSTGRES_PASSWORD: collab
+      POSTGRES_DB: collab_editor
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./server/db/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U collab"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "5432:5432"
+
+  mongo:
+    image: mongo:7
+    volumes:
+      - mongo_data:/data/db
+    ports:
+      - "27017:27017"
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+
+volumes:
+  postgres_data:
+  mongo_data:
+  redis_data:
