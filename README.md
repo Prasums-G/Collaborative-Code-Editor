@@ -1,4 +1,4 @@
-# Collaborative Code Editor — Enterprise Edition
+# Collaborative Code Editor
 
 Real-time multi-user code editing with Operational Transform, built on a production-grade stack. This is the full-stack upgrade of the single-file demo into a system you could deploy at scale.
 
@@ -46,7 +46,7 @@ Client (React + Monaco Editor)
 ## Project Structure
 
 ```
-collab-editor-enterprise/
+Collaborative-Code-Editor/
 ├── docker-compose.yml
 ├── server/
 │   ├── index.js              ← Entry point: Express + WebSocket server
