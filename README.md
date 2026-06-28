@@ -2,7 +2,7 @@
 
 Real-time multi-user code editing with Operational Transform, built on a production-grade stack. This is the full-stack upgrade of the single-file demo into a system you could deploy at scale.
 
-![Node.js](https://img.shields.io/badge/Node.js-20-green) ![Express](https://img.shields.io/badge/Express-4.18-black) ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue) ![MongoDB](https://img.shields.io/badge/MongoDB-7-green) ![Redis](https://img.shields.io/badge/Redis-7-red) ![Docker](https://img.shields.io/badge/Docker-Compose-blue)
+![Node.js](https://img.shields.io/badge/Node.js-20-green) ![Express](https://img.shields.io/badge/Express-4.18-red) ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue) ![MongoDB](https://img.shields.io/badge/MongoDB-7-green) ![Redis](https://img.shields.io/badge/Redis-7-red) ![Docker](https://img.shields.io/badge/Docker-Compose-blue)
 
 ---
 
